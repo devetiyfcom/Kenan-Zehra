@@ -39,9 +39,11 @@
   <div class="sub">MASA LİNKLƏRİ</div>
 
   <div class="card">
-    <h2>BİR MASA</h2>
-    <label for="masa">MASA №</label>
-    <input id="masa" inputmode="numeric" placeholder="12" />
+    <h2>BİR QONAQ / MASA</h2>
+    <div class="row">
+      <div><label for="ad">QONAĞIN ADI (istəyə görə)</label><input id="ad" placeholder="məs. Elvin bəy" /></div>
+      <div style="max-width:110px"><label for="masa">MASA №</label><input id="masa" inputmode="numeric" placeholder="12" /></div>
+    </div>
     <div class="actions"><button class="primary" id="make">Link yarat</button></div>
     <div id="one" style="display:none">
       <div class="result" id="oneUrl"></div>
@@ -54,9 +56,9 @@
   </div>
 
   <div class="card">
-    <h2>BİR NEÇƏ MASA</h2>
-    <p class="hint">Masa nömrələrini vergüllə və ya hər sətirdə bir yazın. Aralıq da olar: <b>1-20</b>.<br>Məsələn: 1, 3, 5-8, 12</p>
-    <textarea id="bulk" placeholder="1-20"></textarea>
+    <h2>SİYAHI İLƏ</h2>
+    <p class="hint">Hər sətirdə bir masa və ya qonaq yazın:<br><b>12</b> — yalnız masa<br><b>Elvin bəy - 5</b> — ad və masa<br>Masa aralığı da olar: <b>1-20</b></p>
+    <textarea id="bulk" placeholder="1-10&#10;Elvin bəy - 5&#10;Səbinə xanım - 12"></textarea>
     <div class="actions">
       <button class="primary" id="makeAll">Linkləri yarat</button>
       <button id="copyAll" style="display:none">Hamısını kopyala</button>
@@ -68,11 +70,13 @@
 <script>
   // Dəvətnamənin əsas linki: linklər həmişə GitHub saytına aparır
   var BASE = "https://devetiyfcom.github.io/Kenan-Zehra/";
-  function linkFor(masa) {
-    return BASE + "?masa=" + encodeURIComponent(masa);
+  function linkFor(masa, ad) {
+    var u = BASE + "?masa=" + encodeURIComponent(masa);
+    if (ad) u += "&ad=" + encodeURIComponent(ad);
+    return u;
   }
-  function msgFor(masa, url) {
-    return "Hörmətli qonağımız,\nSizi Kənan və Zəhranın toyuna dəvət edirik 💍\nMasanız: " + masa + "\n" + url;
+  function msgFor(masa, url, ad) {
+    return "Hörmətli " + (ad || "qonağımız") + ",\nSizi Kənan və Zəhranın toyuna dəvət edirik 💍\nMasanız: " + masa + "\n" + url;
   }
   function toast(t) { var el = document.getElementById("toast"); el.textContent = t || "Kopyalandı"; el.classList.add("show"); setTimeout(function(){ el.classList.remove("show"); }, 1400); }
   function copy(text) {
@@ -83,13 +87,14 @@
   function wa(text) { return "https://wa.me/?text=" + encodeURIComponent(text); }
 
   document.getElementById("make").onclick = function () {
+    var ad = document.getElementById("ad").value.trim();
     var masa = document.getElementById("masa").value.trim();
     if (!masa) { toast("Masa nömrəsini yazın"); return; }
-    var url = linkFor(masa);
+    var url = linkFor(masa, ad);
     document.getElementById("one").style.display = "block";
     document.getElementById("oneUrl").textContent = url;
-    document.getElementById("copyOne").onclick = function(){ copy(msgFor(masa, url)); };
-    document.getElementById("waOne").href = wa(msgFor(masa, url));
+    document.getElementById("copyOne").onclick = function(){ copy(msgFor(masa, url, ad)); };
+    document.getElementById("waOne").href = wa(msgFor(masa, url, ad));
     document.getElementById("openOne").href = url;
   };
 
@@ -104,18 +109,31 @@
     return out.filter(function (v, i) { return out.indexOf(v) === i; });
   }
 
+  // Sətirləri oxu: "12", "1-20", "1, 3, 5", "Elvin bəy - 5"
+  function parseLines(text) {
+    var out = [];
+    text.split(/\n+/).forEach(function (line) {
+      line = line.trim(); if (!line) return;
+      var named = /^(.*[^\d\s,;\-–—].*?)\s*[-–—:]\s*(\S+)$/.exec(line);
+      if (named) { out.push({ ad: named[1].trim(), masa: named[2].trim() }); return; }
+      parseTables(line.replace(/\s*[-–—]\s*/g, "-")).forEach(function (m) { out.push({ ad: "", masa: m }); });
+    });
+    return out;
+  }
+
   var all = [];
   document.getElementById("makeAll").onclick = function () {
-    var tables = parseTables(document.getElementById("bulk").value.replace(/\s*[-–—]\s*/g, "-"));
+    var rows = parseLines(document.getElementById("bulk").value);
     var list = document.getElementById("list"); list.innerHTML = ""; all = [];
-    tables.forEach(function (masa) {
-      var url = linkFor(masa); all.push(msgFor(masa, url));
+    rows.forEach(function (r) {
+      var url = linkFor(r.masa, r.ad), msg = msgFor(r.masa, url, r.ad); all.push(msg);
       var item = document.createElement("div"); item.className = "item";
-      item.innerHTML = "<div>Masa <b></b></div><div class='url'></div><div class='actions'><button>Kopyala</button><a class='btn' target='_blank' rel='noopener'>WhatsApp</a></div>";
-      item.querySelector("b").textContent = masa;
+      item.innerHTML = "<div><span class='who'></span>Masa <b></b></div><div class='url'></div><div class='actions'><button>Kopyala</button><a class='btn' target='_blank' rel='noopener'>WhatsApp</a></div>";
+      if (r.ad) item.querySelector(".who").textContent = r.ad + " · ";
+      item.querySelector("b").textContent = r.masa;
       item.querySelector(".url").textContent = url;
-      item.querySelector("button").onclick = function(){ copy(msgFor(masa, url)); };
-      item.querySelector("a").href = wa(msgFor(masa, url));
+      item.querySelector("button").onclick = function(){ copy(msg); };
+      item.querySelector("a").href = wa(msg);
       list.appendChild(item);
     });
     document.getElementById("copyAll").style.display = all.length ? "inline-flex" : "none";
